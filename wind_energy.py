@@ -152,6 +152,128 @@ print("Direction error (RMSE): %.2f deg" % np.sqrt(np.mean((vad_dir - dir_at_gat
 
 
 # =====================================================================
+# ITEM 2A: horizontal velocity vectors vs height
+# =====================================================================
+# 3 panels:
+#   1) true vectors (the "answer" from STEP 1)
+#   2) what our VAD got back from the virtual lidar (STEP 4)
+#   3) hodograph - all the vector tips on one u vs v plot
+#
+# note to self on reading the arrows: the arrow sits at its height on the
+# y axis, but the arrow itself is a top-down (map) view of the wind.
+# up on the page = toward north, right = toward east, longer = faster.
+# arrows point where the wind is GOING, so wind from 210 (SSW) points
+# up and to the right (toward NNE)
+
+# true profile has 60 heights (every 10 m) -> way too many arrows, they
+# overlap. so just plot every 3rd one (every 30 m)
+# [::3] = start at the first one and grab every 3rd, same as 1:3:end in matlab
+every = 3
+h_true_plot = heights[::every]
+u_true_plot = true_u[::every]
+v_true_plot = true_v[::every]
+
+# arrow length scale: 20 m/s = 1 inch long arrow (so 10 m/s = half inch)
+# using the same number on both panels so the arrow lengths can be compared
+ARROW_SCALE = 20
+
+# one figure, 3 panels side by side (figsize is width, height in inches)
+# not using sharey since panel 3's y axis is v, not height
+fig_vec, ax_vec = plt.subplots(1, 3, figsize=(14, 7))
+
+# ---------------------------------------------------------------------
+# panel 1: true vectors vs height (the answer)
+# ---------------------------------------------------------------------
+# quiver(x, y, u, v) = python's version of matlab quiver, draws arrows
+# all arrows go at x = 0 (np.zeros_like just makes a zeros array the same
+# size as h_true_plot) and y = their height
+#   angles="uv"     -> arrow direction only comes from u and v, so the
+#                      height axis doesn't stretch/distort the angle
+#   pivot="middle"  -> centers the arrow on its height point
+# saving it as q_true so i can add the scale arrow after
+q_true = ax_vec[0].quiver(np.zeros_like(h_true_plot), h_true_plot,
+                          u_true_plot, v_true_plot,
+                          angles="uv", scale_units="inches", scale=ARROW_SCALE,
+                          pivot="middle", color="k", width=0.006)
+
+# reference arrow so you can tell how fast the arrows are
+# (0.8, 0.03) = position as a fraction of the panel (bottom right corner)
+# 10 = the speed the reference arrow stands for, labelpos="N" puts text on top
+ax_vec[0].quiverkey(q_true, 0.8, 0.03, 10, "10 m/s",
+                    labelpos="N", coordinates="axes")
+
+# x position doesn't mean anything here (everything's at 0) so hide the ticks
+ax_vec[0].set_xlim(-1, 1)
+ax_vec[0].set_ylim(0, 620)
+ax_vec[0].set_xticks([])
+ax_vec[0].set_ylabel("Height [m]")
+ax_vec[0].set_title("True vectors (the answer)\nup = north, right = east")
+ax_vec[0].grid(alpha=0.3)
+
+# ---------------------------------------------------------------------
+# panel 2: VAD retrieved vectors vs height
+# ---------------------------------------------------------------------
+# same thing as panel 1 but with the VAD output (vad_u, vad_v)
+# these are at the range gate heights (gate_heights), about every 17 m,
+# so every 2nd gate to keep the arrows from overlapping
+q_vad = ax_vec[1].quiver(np.zeros_like(gate_heights[::2]), gate_heights[::2],
+                         vad_u[::2], vad_v[::2],
+                         angles="uv", scale_units="inches", scale=ARROW_SCALE,
+                         pivot="middle", color="r", width=0.006)
+
+# same 10 m/s reference arrow as panel 1
+ax_vec[1].quiverkey(q_vad, 0.8, 0.03, 10, "10 m/s",
+                    labelpos="N", coordinates="axes")
+
+ax_vec[1].set_xlim(-1, 1)
+ax_vec[1].set_ylim(0, 620)          # same height range as panel 1 to compare
+ax_vec[1].set_xticks([])
+ax_vec[1].set_ylabel("Height [m]")
+ax_vec[1].set_title("VAD retrieval (virtual lidar)\nup = north, right = east")
+ax_vec[1].grid(alpha=0.3)
+
+# ---------------------------------------------------------------------
+# panel 3: hodograph
+# ---------------------------------------------------------------------
+# hodograph = plot v vs u for every height, basically where the tip of
+# each wind vector would be if they all started at the same point
+#   curve moving away from (0,0)  -> wind speeding up with height
+#   curve bending around (0,0)    -> wind turning with height (ekman)
+# easiest way to actually see the turning we built in
+
+# true profile = black line through all 60 heights
+ax_vec[2].plot(true_u, true_v, "k-", label="True (answer)")
+
+# VAD = red dots, one per range gate
+ax_vec[2].plot(vad_u, vad_v, "ro", ms=4, label="VAD retrieval")
+
+# label a few heights on the curve so it's clear which end is the bottom
+# np.argmin(abs(heights - hl)) = index of the height closest to hl
+for hl in [10, 100, 300, 600]:
+    i_hl = np.argmin(abs(heights - hl))
+    ax_vec[2].annotate(f"{heights[i_hl]:.0f} m",                # the label text
+                       (true_u[i_hl], true_v[i_hl]),             # point it goes on
+                       textcoords="offset points", xytext=(8, -4))  # nudge it right a bit
+
+# + at the origin (zero wind) for reference
+ax_vec[2].plot(0, 0, "k+", ms=10)
+
+# axis equal so 1 m/s is the same length on both axes,
+# otherwise the turning angle looks wrong
+ax_vec[2].axis("equal")
+ax_vec[2].set_xlabel("u (toward east) [m/s]")
+ax_vec[2].set_ylabel("v (toward north) [m/s]")
+ax_vec[2].set_title("Hodograph")
+ax_vec[2].legend(loc="lower right")
+ax_vec[2].grid(alpha=0.3)
+
+# tight_layout fixes the spacing so labels don't overlap, then save + show
+plt.tight_layout()
+plt.savefig("vad_vectors.png", dpi=150)
+plt.show()
+
+
+# =====================================================================
 # Real data values
 # =====================================================================
 
@@ -292,3 +414,114 @@ plt.savefig("real_mean_profiles.png", dpi=150)
 plt.show()
 
 print("Heights with good data: %.0f m to %.0f m" % (heights[keep].min(), heights[keep].max()))
+
+
+# =====================================================================
+# ITEM 4: movies of the wind speed and wind direction profiles
+# =====================================================================
+# one frame = one scan's profile, played in time order so you can watch
+# the profiles change over the 12 days
+# using the SPEED, DIR, heights and times arrays from STEP 3 above, so
+# this has to stay at the END of the file (after the real data part)
+#
+# saving as .gif instead of .mp4 because gif only needs pillow (installed
+# with matplotlib). mp4 needs a separate program (ffmpeg) that probably
+# isn't on my computer
+#
+# timing: scans are ~15 min apart, so 8 frames per second ->
+#   1 s of movie = ~2 hrs of real time, whole movie is ~65 s long
+#   (change FPS to speed it up / slow it down)
+#
+# heads up: the times are straight from the file names, still need to
+# check if they're UTC or local before talking about day vs night
+
+# animation tools from matplotlib
+#   FuncAnimation = calls a function once per frame to update the plot
+#   PillowWriter  = saves the frames as a gif
+from matplotlib.animation import FuncAnimation, PillowWriter
+
+FPS      = 4        # frames per second
+H_TOP    = 1000     # only show up to 1000 m, almost no good data above ~750 m
+show     = heights <= H_TOP   # true/false for each height, used to cut the arrays
+
+# mean direction from STEP 4 is only kept where >25% of scans have data,
+# so blank it out (NaN) everywhere else so the gray reference matches
+mean_dir_plot = np.where(keep, mean_dir, np.nan)
+mean_speed_plot = np.where(keep, mean_speed, np.nan)
+
+
+def make_profile_movie(values, mean_profile, xlabel, xlim, color, style, fname, title):
+    """
+    makes one movie. inputs:
+      values       -> SPEED or DIR, shape (scans, heights)
+      mean_profile -> the mean over all scans, drawn in gray for reference
+      xlabel, xlim -> x axis label and limits
+      color, style -> line color and style ("o-" = dots + line, "o" = dots only)
+      fname        -> name of the gif to save
+      title        -> what the movie is of (time gets added each frame)
+    """
+
+    # set up the figure once, the frames just update the data in it
+    fig_m, ax_m = plt.subplots(figsize=(6, 7))
+
+    # gray mean profile, stays the same the whole movie so you can see
+    # when a scan is faster/slower or turned compared to normal
+    ax_m.plot(mean_profile[show], heights[show], "o", color="0.6", ms=3,
+              label="mean of all scans")
+
+    # empty line for the current scan, gets filled in each frame
+    # the comma after prof_line is because plot() returns a list, this
+    # pulls out the one line inside it
+    prof_line, = ax_m.plot([], [], style, color=color, ms=4,
+                           label="current scan")
+
+    ax_m.set_xlim(xlim)
+    ax_m.set_ylim(0, H_TOP)
+    ax_m.set_xlabel(xlabel)
+    ax_m.set_ylabel("Height [m]")
+    ax_m.grid(alpha=0.3)
+    ax_m.legend(loc="upper right")
+    title_text = ax_m.set_title("")    # filled in each frame with the time
+
+    # this runs once for every frame. t = which scan we're on
+    def update(t):
+        # put this scan's profile into the line
+        # NaN heights (bad data) just leave gaps in the line
+        prof_line.set_data(values[t, show], heights[show])
+
+        # put the date/time of this scan in the title
+        # %d-%b-%Y %H:%M -> e.g. 11-Oct-2013 21:40
+        title_text.set_text(f"{title}\n{times[t]:%d-%b-%Y %H:%M}   (scan {t+1} of {n_scans})")
+
+        # FuncAnimation wants back the things that changed
+        return prof_line, title_text
+
+    # build the animation: call update() for every scan 0, 1, ..., n_scans-1
+    # interval = ms between frames (only matters for live playback)
+    anim = FuncAnimation(fig_m, update, frames=n_scans, interval=1000 / FPS)
+
+    # save as a gif. this is the slow part (draws all 516 frames),
+    # takes a minute or two so it prints before and after
+    print(f"saving {fname} ... (takes a minute or two)")
+    anim.save(fname, writer=PillowWriter(fps=FPS))
+    print(f"done -> {fname}")
+
+    # close the figure so it doesn't pop up as a still window
+    plt.close(fig_m)
+
+
+# movie 1: wind speed profiles (dots + line since speed is smooth with height)
+make_profile_movie(SPEED, mean_speed_plot,
+                   xlabel="Wind speed [m/s]", xlim=(0, 13),
+                   color="b", style="o-",
+                   fname="movie_wind_speed.gif",
+                   title="VAD wind speed profile")
+
+# movie 2: wind direction profiles
+# dots only, no line: a line would draw a fake jump across the plot every
+# time the direction crosses 0/360 (north)
+make_profile_movie(DIR, mean_dir_plot,
+                   xlabel="Wind direction [deg, from]", xlim=(0, 360),
+                   color="r", style="o",
+                   fname="movie_wind_direction.gif",
+                   title="VAD wind direction profile")
