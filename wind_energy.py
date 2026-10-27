@@ -1,5 +1,5 @@
 """
-HW3 - Part 2, Sub-Part 1: Profile VAD  (simple version)
+HW3 - Part 2, Sub-Part 1: Profile VAD
 
 The idea in 4 steps:
   STEP 1. Make a fake wind profile where we KNOW the answer
@@ -69,9 +69,9 @@ for kz in range(len(heights)):
 
 # STEP 3: Virtual lidar - scan a cone and measure radial velocity
 
-elevation = 60                       # beam angle above the ground [deg]
-azimuths  = np.arange(0, 360, 10)    # 36 beams around the circle [deg]
-ranges    = np.arange(20, 690, 20)   # distances along the beam [m]
+elevation = 60 # beam angle above the ground [deg]
+azimuths  = np.arange(0, 360, 10) # 36 beams around the circle [deg]
+ranges    = np.arange(20, 690, 20) # distances along the beam [m]
 
 el = np.radians(elevation)
 gate_heights = ranges * np.sin(el)   # height of each range gate
