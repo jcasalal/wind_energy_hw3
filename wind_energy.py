@@ -1,20 +1,17 @@
 """
-HW3 - Part 2, Sub-Part 1: Profile VAD
+HW3 - Part 2, Sub-Part 1: Profile VAD 
 
-The idea in 4 steps:
-  STEP 1. Make a fake wind profile where we KNOW the answer
-  STEP 2. Copy it everywhere in a 3D box + add random noise ("kick")
-  STEP 3. Pretend to be a lidar: scan in a circle and measure only
-          the wind ALONG the beam (radial velocity)
-  STEP 4. VAD: from those radial velocities, recover the wind
-          and compare to the answer
+Steps of the process:
+  1. Make a fake wind profile where we KNOW the answer
+  2. Copy it everywhere in a 3D box + add random noise ("kick")
+  3. Pretend to be a lidar: scan in a circle and measure only the wind ALONG the beam (radial velocity)
+  4. VAD: from those radial velocities, recover the wind and compare to the answer
 """
 
 import numpy as np
 import matplotlib.pyplot as plt
 
 np.random.seed(488) # change this number -> unique dataset for your group
-
 
 # STEP 1: The "true" wind profile (only changes with height)
 
@@ -31,9 +28,7 @@ dir_bottom = 210   # degrees at the ground (wind coming FROM 210 = SSW)
 dir_top    = 235   # degrees at the top   -> 25 deg of turning
 true_dir = np.linspace(dir_bottom, dir_top, len(heights))
 
-
 # Helper: speed + direction  <->  u (east) + v (north)
-# (meteorology: direction = where the wind comes FROM)
 def speed_dir_to_uv(speed, direction):
     rad = np.radians(direction)
     u = -speed * np.sin(rad)
@@ -48,9 +43,7 @@ def uv_to_speed_dir(u, v):
 
 true_u, true_v = speed_dir_to_uv(true_speed, true_dir)
 
-# =====================================================================
 # STEP 2: Fill a 3D box with that profile + 7.5% random kick
-# =====================================================================
 x = np.arange(-1500, 1501, 50) # east-west positions [m]
 y = np.arange(-1500, 1501, 50) # north-south positions [m]
 kick = 0.075 # 7.5 % noise
@@ -65,13 +58,11 @@ for kz in range(len(heights)):
     U[:, :, kz] = true_u[kz] + noise_u
     V[:, :, kz] = true_v[kz] + noise_v
 
-
-
 # STEP 3: Virtual lidar - scan a cone and measure radial velocity
 
-elevation = 60 # beam angle above the ground [deg]
-azimuths  = np.arange(0, 360, 10) # 36 beams around the circle [deg]
-ranges    = np.arange(20, 690, 20) # distances along the beam [m]
+elevation = 60                       # beam angle above the ground [deg]
+azimuths  = np.arange(0, 360, 10)    # 36 beams around the circle [deg]
+ranges    = np.arange(20, 690, 20)   # distances along the beam [m]
 
 el = np.radians(elevation)
 gate_heights = ranges * np.sin(el)   # height of each range gate
@@ -99,11 +90,10 @@ for g in range(len(ranges)):
         radial[g, a] = (u_here * np.sin(az) + v_here * np.cos(az)) * np.cos(el)
 
 
-# =====================================================================
 # STEP 4: VAD - fit a sine wave at each height to get the wind back
-# =====================================================================
+
 # At one height, radial velocity vs azimuth looks like a sine wave:
-#     Vr = A + B*cos(az) + C*sin(az)
+#   Vr = A + B*cos(az) + C*sin(az)
 #   B = v*cos(el)  ->  v = B / cos(el)
 #   C = u*cos(el)  ->  u = C / cos(el)
 #   (A would be the vertical wind - zero here)
@@ -121,10 +111,8 @@ for g in range(len(ranges)):
 
 vad_speed, vad_dir = uv_to_speed_dir(vad_u, vad_v)
 
-
-# =====================================================================
 # RESULTS: plots + error
-# =====================================================================
+
 fig, ax = plt.subplots(1, 2, figsize=(10, 6), sharey=True)
 
 ax[0].plot(true_speed, heights, "k-", label="True (answer)")
@@ -151,23 +139,8 @@ print("Speed error (RMSE):     %.2f m/s" % np.sqrt(np.mean((vad_speed - speed_at
 print("Direction error (RMSE): %.2f deg" % np.sqrt(np.mean((vad_dir - dir_at_gates)**2)))
 
 
-# =====================================================================
 # ITEM 2A: horizontal velocity vectors vs height
-# =====================================================================
-# 3 panels:
-#   1) true vectors (the "answer" from STEP 1)
-#   2) what our VAD got back from the virtual lidar (STEP 4)
-#   3) hodograph - all the vector tips on one u vs v plot
-#
-# note to self on reading the arrows: the arrow sits at its height on the
-# y axis, but the arrow itself is a top-down (map) view of the wind.
-# up on the page = toward north, right = toward east, longer = faster.
-# arrows point where the wind is GOING, so wind from 210 (SSW) points
-# up and to the right (toward NNE)
 
-# true profile has 60 heights (every 10 m) -> way too many arrows, they
-# overlap. so just plot every 3rd one (every 30 m)
-# [::3] = start at the first one and grab every 3rd, same as 1:3:end in matlab
 every = 3
 h_true_plot = heights[::every]
 u_true_plot = true_u[::every]
@@ -181,9 +154,8 @@ ARROW_SCALE = 20
 # not using sharey since panel 3's y axis is v, not height
 fig_vec, ax_vec = plt.subplots(1, 3, figsize=(14, 7))
 
-# ---------------------------------------------------------------------
 # panel 1: true vectors vs height (the answer)
-# ---------------------------------------------------------------------
+
 # quiver(x, y, u, v) = python's version of matlab quiver, draws arrows
 # all arrows go at x = 0 (np.zeros_like just makes a zeros array the same
 # size as h_true_plot) and y = their height
@@ -210,9 +182,8 @@ ax_vec[0].set_ylabel("Height [m]")
 ax_vec[0].set_title("True vectors (the answer)\nup = north, right = east")
 ax_vec[0].grid(alpha=0.3)
 
-# ---------------------------------------------------------------------
+
 # panel 2: VAD retrieved vectors vs height
-# ---------------------------------------------------------------------
 # same thing as panel 1 but with the VAD output (vad_u, vad_v)
 # these are at the range gate heights (gate_heights), about every 17 m,
 # so every 2nd gate to keep the arrows from overlapping
@@ -232,14 +203,8 @@ ax_vec[1].set_ylabel("Height [m]")
 ax_vec[1].set_title("VAD retrieval (virtual lidar)\nup = north, right = east")
 ax_vec[1].grid(alpha=0.3)
 
-# ---------------------------------------------------------------------
+
 # panel 3: hodograph
-# ---------------------------------------------------------------------
-# hodograph = plot v vs u for every height, basically where the tip of
-# each wind vector would be if they all started at the same point
-#   curve moving away from (0,0)  -> wind speeding up with height
-#   curve bending around (0,0)    -> wind turning with height (ekman)
-# easiest way to actually see the turning we built in
 
 # true profile = black line through all 60 heights
 ax_vec[2].plot(true_u, true_v, "k-", label="True (answer)")
@@ -300,9 +265,8 @@ from datetime import datetime
 import warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning)   # hides "mean of empty slice" at heights with no data
 
-# =====================================================================
 # STEP 1: Load the file
-# =====================================================================
+
 mat = loadmat("Data_for_VAD.mat", squeeze_me=True, struct_as_record=False)
 scans = mat["Data"]
 print("Number of scans:", len(scans))
@@ -315,12 +279,8 @@ heights = ranges * np.sin(np.radians(elev))               # ~12 m ... ~1910 m
 MIN_GOOD_BEAMS = 0.5    # need at least 50% of the beams valid at a gate to trust the fit
 MAX_FIT_ERROR  = 1.0    # m/s: if the sine fit is worse than this, throw the gate away
 
-
-# =====================================================================
 # STEP 2: VAD fit for ONE scan  (same idea as vad_simple.py)
-#   rv = A + B*cos(az) + C*sin(az)
-#   u = C / cos(el),   v = B / cos(el),   w = A / sin(el)
-# =====================================================================
+
 def vad_one_scan(scan):
     az_all = scan.az
     rv_all = scan.rv
@@ -357,11 +317,9 @@ def uv_to_speed_dir(u, v):
     direction = np.degrees(np.arctan2(-u, -v)) % 360
     return speed, direction
 
-
-# =====================================================================
 # STEP 3: Run VAD on every scan
 #   U[t, h] = east wind at scan t, height h   (same for V)
-# =====================================================================
+
 n_scans = len(scans)
 U = np.full((n_scans, len(heights)), np.nan)
 V = np.full((n_scans, len(heights)), np.nan)
@@ -378,12 +336,8 @@ np.savez("vad_results.npz", times=np.array(times, dtype="datetime64[s]"),
          heights=heights, U=U, V=V, SPEED=SPEED, DIR=DIR)
 
 
-# =====================================================================
 # STEP 4: Mean profiles over the whole dataset
-#   Mean speed:     average of the speeds
-#   Mean direction: average u and v FIRST, then convert
-#                   (you can't just average angles: avg of 350 and 10 is NOT 180!)
-# =====================================================================
+
 n_good = np.sum(np.isfinite(SPEED), axis=0)        # how many scans have data at each height
 keep = n_good >= 0.25 * n_scans                    # only show heights with decent data
 
@@ -415,29 +369,8 @@ plt.show()
 
 print("Heights with good data: %.0f m to %.0f m" % (heights[keep].min(), heights[keep].max()))
 
-
-# =====================================================================
 # ITEM 4: movies of the wind speed and wind direction profiles
-# =====================================================================
-# one frame = one scan's profile, played in time order so you can watch
-# the profiles change over the 12 days
-# using the SPEED, DIR, heights and times arrays from STEP 3 above, so
-# this has to stay at the END of the file (after the real data part)
-#
-# saving as .gif instead of .mp4 because gif only needs pillow (installed
-# with matplotlib). mp4 needs a separate program (ffmpeg) that probably
-# isn't on my computer
-#
-# timing: scans are ~15 min apart, so 8 frames per second ->
-#   1 s of movie = ~2 hrs of real time, whole movie is ~65 s long
-#   (change FPS to speed it up / slow it down)
-#
-# heads up: the times are straight from the file names, still need to
-# check if they're UTC or local before talking about day vs night
 
-# animation tools from matplotlib
-#   FuncAnimation = calls a function once per frame to update the plot
-#   PillowWriter  = saves the frames as a gif
 from matplotlib.animation import FuncAnimation, PillowWriter
 
 FPS      = 4        # frames per second
@@ -512,9 +445,9 @@ def make_profile_movie(values, mean_profile, xlabel, xlim, color, style, fname, 
 
 # movie 1: wind speed profiles (dots + line since speed is smooth with height)
 make_profile_movie(SPEED, mean_speed_plot,
-                   xlabel="Wind speed [m/s]", xlim=(0, 13),
+                  xlabel="Wind speed [m/s]", xlim=(0, 13),
                    color="b", style="o-",
-                   fname="movie_wind_speed.gif",
+                  fname="movie_wind_speed.gif",
                    title="VAD wind speed profile")
 
 # movie 2: wind direction profiles
@@ -525,3 +458,69 @@ make_profile_movie(DIR, mean_dir_plot,
                    color="r", style="o",
                    fname="movie_wind_direction.gif",
                    title="VAD wind direction profile")
+
+
+# ITEM 5: evidence for the meteorological summary
+from datetime import timedelta
+
+#  local time: file times are UTC, site is UTC-7 (western US)
+local_hour = np.array([(tt + timedelta(hours=-7)).hour for tt in times])
+night = (local_hour >= 20) | (local_hour < 6) # 8 pm - 6 am
+day   = (local_hour >= 10) & (local_hour < 17) # 10 am - 5 pm
+
+
+# PLOT 1: whole dataset in one picture (speed + direction vs time and height)
+# shows jets, the big wind event, and how much the direction jumps around
+fig, ax = plt.subplots(2, 1, figsize=(14, 7), sharex=True)
+ax[0].scatter(np.repeat(times, len(heights)), np.tile(heights, n_scans),
+              c=SPEED.ravel(), s=4, marker="s", cmap="viridis", vmin=0, vmax=10)
+ax[1].scatter(np.repeat(times, len(heights)), np.tile(heights, n_scans),
+              c=DIR.ravel(), s=4, marker="s", cmap="twilight", vmin=0, vmax=360)
+fig.colorbar(ax[0].collections[0], ax=ax[0], label="Speed [m/s]")
+fig.colorbar(ax[1].collections[0], ax=ax[1], label="Direction [deg, from]")
+for a in ax:
+    a.set_ylim(0, 900); a.set_ylabel("Height [m]")
+ax[0].set_title("Wind speed"); ax[1].set_title("Wind direction")
+ax[1].set_xlabel("Date (UTC)")
+plt.tight_layout(); plt.savefig("item5_time_height.png", dpi=150); plt.show()
+
+
+# --- PLOT 2: night vs day profile (Stull) + which way the wind blows ---
+fig, ax = plt.subplots(1, 2, figsize=(11, 5))
+ax[0].plot(np.nanmean(SPEED[night], axis=0)[keep], heights[keep], "o-", label="night")
+ax[0].plot(np.nanmean(SPEED[day], axis=0)[keep], heights[keep], "o-", label="day")
+ax[0].set_xlabel("Mean speed [m/s]"); ax[0].set_ylabel("Height [m]")
+ax[0].set_title("Night vs day profile"); ax[0].legend(); ax[0].grid(alpha=0.3)
+
+i300 = np.argmin(abs(heights - 300))                 # 300 m has data in every scan
+ax[1].hist(DIR[:, i300], bins=np.arange(0, 361, 30), edgecolor="k")
+ax[1].set_xlabel("Direction at 300 m [deg, from]"); ax[1].set_ylabel("Number of scans")
+ax[1].set_title("Wind direction distribution"); ax[1].set_xticks(range(0, 361, 90))
+plt.tight_layout(); plt.savefig("item5_night_day.png", dpi=150); plt.show()
+
+
+# --- NUMBERS ---
+print("\n---- ITEM 5 ----")
+# nocturnal jets: fastest wind is below 600 m, at least 4 m/s,
+# and the wind above it is at least 2 m/s slower
+jet = np.zeros(n_scans, dtype=bool)
+for t in range(n_scans):
+    prof = SPEED[t, heights <= 800]
+    if np.sum(np.isfinite(prof)) < 8:
+        continue
+    k = np.nanargmax(prof)
+    if heights[k] < 600 and prof[k] >= 4 and np.isfinite(prof[k+1:]).any():
+        jet[t] = prof[k] - np.nanmin(prof[k+1:]) >= 2
+print(f"jets: {100*jet[night].mean():.0f}% of night scans, {100*jet[day].mean():.0f}% of day scans")
+
+# rotor: hub 200 m, diameter 100 m -> 150 to 250 m
+# (lidar has almost no data below ~130 m, so a normal 100 m hub can't be checked)
+i_bot = np.argmin(abs(heights - 150))
+i_top = np.argmin(abs(heights - 250))
+dspeed = SPEED[:, i_top] - SPEED[:, i_bot]
+veer = (DIR[:, i_top] - DIR[:, i_bot] + 180) % 360 - 180 # wrapped to -180..180
+print(f"rotor {heights[i_bot]:.0f}-{heights[i_top]:.0f} m:")
+print(f"   speed change top-bottom: median {np.nanmedian(dspeed):+.2f} m/s")
+print(f"   direction change top-bottom: median size {np.nanmedian(abs(veer)):.0f} deg")
+i_hub = np.argmin(abs(heights - 200))
+print(f"   hub (200 m) speed above 3 m/s (cut-in): {100*np.nanmean(SPEED[:, i_hub] > 3):.0f}% of the time")
